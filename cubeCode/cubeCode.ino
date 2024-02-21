@@ -1,3 +1,5 @@
+boolean printDiagnostics = false;
+
 union CubeData
 {
   struct
@@ -5,30 +7,39 @@ union CubeData
     int16_t state;
     int16_t watchdog;
     int16_t chipTemp;
-    int16_t led1;
-    int16_t led2;
+    int16_t switchOpenAlarm;
+    int16_t newData;
+    int16_t switchState[3];
   };
-  byte buffer[10];
+  byte buffer[16];
 };
 CubeData cubeData;
 
 #include "BlinkyPicoWCube.h"
 
 
-int commLEDPin = 16;
+int commLEDPin = 2;
 int commLEDBright = 255; 
-int resetButtonPin = 15;
-int led1Pin = 14;
-int led2Pin = 17;
+int resetButtonPin = 3;
+
+int powerPin[]  = {10, 13, 16};
+int switchPin[] = {11, 14, 17};
+int signalPin[] = {12, 15, 18};
+unsigned long switchTime[] = {0, 0, 0};
 
 unsigned long lastPublishTime;
 unsigned long publishInterval = 2000;
+unsigned long debounceInterval = 20;
 
 void setupServerComm()
 {
   // Optional setup to overide defaults
-//  Serial.begin(115200);
-  BlinkyPicoWCube.setChattyCathy(false);
+  if (printDiagnostics)
+  {
+    Serial.begin(115200);
+    delay(10000);
+  }
+  BlinkyPicoWCube.setChattyCathy(printDiagnostics);
   BlinkyPicoWCube.setWifiTimeoutMs(20000);
   BlinkyPicoWCube.setWifiRetryMs(20000);
   BlinkyPicoWCube.setMqttRetryMs(3000);
@@ -46,33 +57,71 @@ void setupServerComm()
 
 void setupCube()
 {
-  lastPublishTime = millis();
-  pinMode(led1Pin, OUTPUT);
-  pinMode(led2Pin, OUTPUT);
+  lastPublishTime = 0;
+  for (int ii = 0; ii < 3; ++ii)
+  {
+    pinMode(powerPin[ii], OUTPUT);
+    pinMode(switchPin[ii], INPUT);
+    pinMode(signalPin[ii], OUTPUT);
+    digitalWrite(powerPin[ii], HIGH);
+    digitalWrite(signalPin[ii], LOW);
+    cubeData.switchState[ii] = -1;
+  }
+
   cubeData.state = 1;
   cubeData.watchdog = 0;
-  cubeData.led1 = 0;
-  cubeData.led2 = 0;
-  analogWrite(led1Pin, cubeData.led1);    
-  analogWrite(led2Pin, cubeData.led2);    
+  cubeData.switchOpenAlarm = 1;
+  cubeData.newData = 0;
 }
 
 void cubeLoop()
 {
   unsigned long nowTime = millis();
-  
-  if ((nowTime - lastPublishTime) > publishInterval)
+  boolean stateChange = false;
+  for (int ii = 0; ii < 3; ++ii)
   {
-    lastPublishTime = nowTime;
-    cubeData.watchdog = cubeData.watchdog + 1;
-    if (cubeData.watchdog > 32760) cubeData.watchdog= 0 ;
-    BlinkyPicoWCube::publishToServer();
-  }  
+    int16_t pinValue = (int16_t) digitalRead(switchPin[ii]);
+    if (pinValue != cubeData.switchState[ii])
+    {
+      if((nowTime - switchTime[ii]) > debounceInterval)
+      {
+        cubeData.switchState[ii] = pinValue;
+        switchTime[ii] = nowTime;
+        stateChange = true;
+        boolean signalVal = false;
+        if (pinValue > 0) signalVal = true;
+        if (cubeData.switchOpenAlarm == 1) signalVal = !signalVal;
+        digitalWrite(signalPin[ii], signalVal);
+      }
+    }
+  }
+  cubeData.newData = 0;
+  if (stateChange)
+  {
+    cubeData.newData = 1;
+    publishData(nowTime);  
+  }
+  if ((nowTime - lastPublishTime) > publishInterval) publishData(nowTime);
   
-  cubeData.chipTemp = (int16_t) (analogReadTemp() * 100.0);
 }
 
-
+void publishData(unsigned long nowTime)
+{
+  lastPublishTime = nowTime;
+  cubeData.watchdog = cubeData.watchdog + 1;
+  if (cubeData.watchdog > 32760) cubeData.watchdog= 0 ;
+  cubeData.chipTemp = (int16_t) (analogReadTemp() * 100.0);
+  
+  BlinkyPicoWCube::publishToServer();
+  if (printDiagnostics)
+  {
+    Serial.print(cubeData.switchState[0]);
+    Serial.print(",");
+    Serial.print(cubeData.switchState[1]);
+    Serial.print(",");
+    Serial.println(cubeData.switchState[2]);
+  }
+}
 void handleNewSettingFromServer(uint8_t address)
 {
   switch(address)
@@ -84,10 +133,13 @@ void handleNewSettingFromServer(uint8_t address)
     case 2:
       break;
     case 3:
-      analogWrite(led1Pin, cubeData.led1);  
+      for (int ii = 0; ii < 3; ++ii) 
+      {
+        cubeData.switchState[ii] = -1;
+        switchTime[ii] = 0;
+      }
       break;
     case 4:
-      analogWrite(led2Pin, cubeData.led2);    
       break;
     default:
       break;
