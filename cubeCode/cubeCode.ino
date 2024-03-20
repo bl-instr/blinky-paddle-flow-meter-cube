@@ -1,4 +1,4 @@
-boolean printDiagnostics = true;
+boolean printDiagnostics = false;
 
 union CubeData
 {
