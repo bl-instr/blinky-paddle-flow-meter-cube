@@ -112,7 +112,7 @@ void publishData(unsigned long nowTime)
   if (cubeData.watchdog > 32760) cubeData.watchdog= 0 ;
   cubeData.chipTemp = (int16_t) (analogReadTemp() * 100.0);
   
-  BlinkyPicoWCube::publishToServer();
+  BlinkyPicoWCube.publishToServer();
   if (printDiagnostics)
   {
     Serial.print(cubeData.switchState[0]);
