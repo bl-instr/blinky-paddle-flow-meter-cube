@@ -1,5 +1,5 @@
-# blinky-thermo-switch-p-cube
+# blinky-interlock-cube
 
-![pcb](./blinky-thermo-switch-p-pcb.png)
+![pcb](./blinky-interlock-pcb.png)
 
-![pcb](./blinky-thermo-switch-p-schem.png)
+![pcb](./blinky-interlock-schem.png)
