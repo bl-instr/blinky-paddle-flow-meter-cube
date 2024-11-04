@@ -1,4 +1,4 @@
-# blinky-interlock-cube
+# blinky-paddle-flow-cube
 
 ![pcb](./blinky-interlock-pcb.png)
 
