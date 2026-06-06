@@ -54,8 +54,8 @@ void setupCube()
     pinMode(signalPin[ii], OUTPUT);
     digitalWrite(powerPin[ii], HIGH);
     digitalWrite(signalPin[ii], LOW);
-    switchSignal[ii] = LOW;
-    oldSwitchSignal[ii] = LOW;
+    switchSignal[ii] = digitalRead(switchPin[ii]);
+    oldSwitchSignal[ii] = switchSignal[ii];
     oldSwitchTime[ii] = lastPublishTime;
     switchTime[ii] = 32765;
     reading.rate[ii] = 0;
@@ -72,15 +72,20 @@ void loopCube()
   for (int ii = 0; ii < 3; ++ii)
   {
     switchSignal[ii] = digitalRead(switchPin[ii]); 
-    delay(10);
     if ((switchSignal[ii] == 1) && (oldSwitchSignal[ii] == 0) )
     {
       float switchTimeF = (float) (now - oldSwitchTime[ii]);
       switchTime[ii] = switchTime[ii] + (switchTimeF - switchTime[ii]) / ((float) setting.nsamples);
       oldSwitchTime[ii] = now;
     }
+    if ((now - oldSwitchTime[ii]) > 32765) 
+    {
+      oldSwitchTime[ii] = now;
+      switchTime[ii] = 32765;
+    }
     oldSwitchSignal[ii] = switchSignal[ii];
   }
+  if (CUBE_DIAG > 0) Serial.println(" ");
   if ((now - lastPublishTime) > setting.publishInterval)
   {
     for (int ii = 0; ii < 3; ++ii)
@@ -90,11 +95,11 @@ void loopCube()
       reading.rate[ii] = (uint16_t) rate;
       if (CUBE_DIAG > 0)
       {
-        Serial.print(reading.rate[ii]);
-        if ( ii < 2) Serial.print(",");
+//        Serial.print(reading.rate[ii]);
+//        if ( ii < 2) Serial.print(",");
       }
     }
-    if (CUBE_DIAG > 0) Serial.println(" ");
+//    if (CUBE_DIAG > 0) Serial.println(" ");
     lastPublishTime = now;
     boolean successful = BlinkyPicoW.publishCubeData((uint8_t*) &setting, (uint8_t*) &reading, false);
   }
